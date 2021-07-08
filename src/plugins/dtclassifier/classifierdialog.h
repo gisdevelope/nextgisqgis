@@ -72,7 +72,7 @@ class ClassifierDialog : public QDialog, private Ui::ClassifierDialogBase
     QString mOutputFileName;
 
     RasterFileInfo mFileInfo;
-	
+
     // void rasterClassification( const QString& rasterFileName );
 
     // QString createSingleBandRaster();
@@ -98,6 +98,11 @@ class ClassifierDialog : public QDialog, private Ui::ClassifierDialogBase
     // QgsVectorLayer* createBuffer( QgsVectorLayer* src );
 
     void layersCmbCustomization();
+
+    void setPresenceLayersValidationError(const QString& msg);
+    void clearPresenceLayersValidationError();
+    void setAbsenceLayersValidationError(const QString& msg);
+    void clearAbsenceLayersValidationError();
 
   private slots:
     void finishedProcess();

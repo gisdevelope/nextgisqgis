@@ -40,7 +40,7 @@
 #if CV_MAJOR_VERSION == 2
 #include "opencv2/highgui/highgui_c.h"
 #include "opencv2/imgproc/imgproc_c.h"
-#elif CV_MAJOR_VERSION == 3
+#elif CV_MAJOR_VERSION > 2
 #include "opencv2/imgcodecs.hpp"
 #include "opencv2/imgproc.hpp"
 #define CV_ROW_SAMPLE ml::ROW_SAMPLE
@@ -143,12 +143,12 @@ QString ClassifierWorker::smoothRaster( const QString& path )
     QgsDebugMsg(QString("ClassifierWorker::smoothRaster img->cols: %1").arg(img->cols));
 
     cvSmooth( img, outImg, CV_MEDIAN, mConfig.kernel_size );
-#elif CV_MAJOR_VERSION == 3
+#elif CV_MAJOR_VERSION > 2
 
-    Mat img = imread( path.toStdString(), IMREAD_UNCHANGED );
-    QgsDebugMsg(QString("ClassifierWorker::smoothRaster img->rows: %1").arg(img->rows));
+    Mat img = imread( path.toStdString(), cv::IMREAD_UNCHANGED );
+    QgsDebugMsg(QString("ClassifierWorker::smoothRaster img.rows: %1").arg(img.rows));
     Mat outImg( img.rows, img.cols, CV_8UC1 );
-    QgsDebugMsg(QString("ClassifierWorker::smoothRaster img->cols: %1").arg(img->cols));
+    QgsDebugMsg(QString("ClassifierWorker::smoothRaster img.cols: %1").arg(img.cols));
 
     medianBlur( img, outImg, mConfig.kernel_size );
 #endif
@@ -192,7 +192,7 @@ QString ClassifierWorker::smoothRaster( const QString& path )
 
     cvReleaseMat( &img );
     cvReleaseMat( &outImg );
-#elif CV_MAJOR_VERSION == 3
+#elif CV_MAJOR_VERSION > 2
     int res = outRaster->RasterIO( GF_Write, 0, 0, mEnv->mResultInputRasterFileInfo->xSize(), mEnv->mResultInputRasterFileInfo->ySize(), (void*)outImg.data, mEnv->mResultInputRasterFileInfo->xSize(), mEnv->mResultInputRasterFileInfo->ySize(), GDT_Byte, 1, 0, 0, 0, 0 );
 #endif
     Q_UNUSED(res)
@@ -942,7 +942,7 @@ PrepareModel::~PrepareModel()
 #if CV_MAJOR_VERSION == 2
     mEnv->mDTree = NULL;
     mEnv->mRTree = NULL;
-#elif CV_MAJOR_VERSION == 3
+#elif CV_MAJOR_VERSION > 2
     mEnv->mDTree.release();
     mEnv->mRTree.release();
 #endif
@@ -971,7 +971,7 @@ void PrepareModel::doWork()
 #if CV_MAJOR_VERSION == 2
     mDTree = new CvDTree();
     mRTree = new CvRTrees();
-#elif CV_MAJOR_VERSION == 3
+#elif CV_MAJOR_VERSION > 2
     mDTree = ml::DTrees::create();
     mRTree = ml::RTrees::create();
 #endif
@@ -983,7 +983,7 @@ void PrepareModel::doWork()
             mDTree->load(mConfig->mInputModel.toUtf8());
         else
             mRTree->load(mConfig->mInputModel.toUtf8());
-#elif CV_MAJOR_VERSION == 3
+#elif CV_MAJOR_VERSION > 2
         if ( mConfig->use_decision_tree )
         // https://docs.opencv.org/3.2.0/d3/d46/classcv_1_1Algorithm.html#a623841c33b58ea9c4847da04607e067b
         // Ptr<SVM> svm = Algorithm::load<SVM>("my_svm_model.xml");
@@ -1024,7 +1024,7 @@ void PrepareModel::doWork()
         {
           mDTree->train( mEnv->mTrainData, CV_ROW_SAMPLE, mEnv->mTrainResponses, Mat(), Mat(), Mat(), Mat(), params );
         }
-#elif CV_MAJOR_VERSION == 3
+#elif CV_MAJOR_VERSION > 2
         mDTree->setMaxDepth(8);
         mDTree->setMinSampleCount(10);
         mDTree->setRegressionAccuracy(0);
@@ -1068,7 +1068,7 @@ void PrepareModel::doWork()
         mDTree->save( treeFileName.toUtf8(), "MyTree" );
     else
         mRTree->save( treeFileName.toUtf8(), "MyTree" );
-#elif CV_MAJOR_VERSION == 3
+#elif CV_MAJOR_VERSION > 2
     if ( mConfig->use_decision_tree )
         mDTree->save( treeFileName.toStdString() );
     else
@@ -1140,7 +1140,7 @@ void Classify::doWork()
         {
 #if CV_MAJOR_VERSION == 2
           outData[ col ] = (unsigned char)mEnv->mDTree->predict( sample )->value;
-#elif CV_MAJOR_VERSION == 3
+#elif CV_MAJOR_VERSION > 2
           outData[ col ] = (unsigned char)mEnv->mDTree->predict( sample );
 #endif
         }

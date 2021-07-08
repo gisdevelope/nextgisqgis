@@ -15,9 +15,19 @@
 
 #include "qgsalignraster.h"
 
-#include <gdalwarper.h>
 #include <ogr_srs_api.h>
 #include <cpl_conv.h>
+
+#if defined(_MSC_VER) && _MSC_VER >= 1600 && _MSC_VER < 1900
+#include <cpl_multiproc.h>
+// we need GDALWarpKernel
+#undef CPL_SUPRESS_CPLUSPLUS
+#undef CPL_DISALLOW_COPY_ASSIGN
+#define CPL_DISALLOW_COPY_ASSIGN(className)
+#endif
+
+#include <gdalwarper.h>
+
 #include <limits>
 
 #include <qmath.h>
@@ -503,9 +513,8 @@ bool QgsAlignRaster::createAndWarp( const Item& raster )
   }
 
   // Initialize and execute the warp operation.
-  GDALWarpOperation oOperation;
-  oOperation.Initialize( psWarpOptions );
-  oOperation.ChunkAndWarpImage( 0, 0, mXSize, mYSize );
+  GDALWarpOperationH oOperation = GDALCreateWarpOperation( psWarpOptions );
+  GDALChunkAndWarpImage( oOperation, 0, 0, mXSize, mYSize );
 
   GDALDestroyGenImgProjTransformer( psWarpOptions->pTransformerArg );
   GDALDestroyWarpOptions( psWarpOptions );

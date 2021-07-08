@@ -106,6 +106,9 @@ bool QgsImageWarper::createDestinationDataset( const QString &outputName, GDALDa
   if ( crs.isValid() )
   {
     OGRSpatialReferenceH oTargetSRS = OSRNewSpatialReference( nullptr );
+    #if GDAL_VERSION_NUM >= GDAL_COMPUTE_VERSION(3,0,0)
+    OSRSetAxisMappingStrategy(oTargetSRS, OAMS_TRADITIONAL_GIS_ORDER);
+    #endif // GDAL_VERSION_NUM >= GDAL_COMPUTE_VERSION(3,0,0)
     OGRErr err = OSRImportFromProj4( oTargetSRS, crs.toProj4().toUtf8() );
     if ( err != CE_None )
     {
@@ -252,15 +255,14 @@ int QgsImageWarper::warpFile( const QString& input,
                                    adfGeoTransform );
 
   // Initialize and execute the warp operation.
-  GDALWarpOperation oOperation;
-  oOperation.Initialize( psWarpOptions );
+  GDALWarpOperationH oOperation = GDALCreateWarpOperation( psWarpOptions );
 
   progressDialog->show();
   progressDialog->raise();
   progressDialog->activateWindow();
 
-  eErr = oOperation.ChunkAndWarpImage( 0, 0, destPixels, destLines );
-//  eErr = oOperation.ChunkAndWarpMulti(0, 0, destPixels, destLines);
+  eErr = GDALChunkAndWarpImage( oOperation, 0, 0, destPixels, destLines );
+  // eErr = GDALChunkAndWarpMulti( oOperation, 0, 0, destPixels, destLines );
 
   destroyGeoToPixelTransform( psWarpOptions->pTransformerArg );
   GDALDestroyWarpOptions( psWarpOptions );

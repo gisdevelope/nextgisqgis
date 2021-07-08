@@ -95,7 +95,10 @@
 #include <QDesktopServices>
 #include <QtXml>
 
+#ifdef HAVE_PGCONFIG
 #include <pg_config.h>
+#endif // HAVE_PGCONFIG
+
 #include <sqlite3.h>
 extern "C"
 {
@@ -113,9 +116,12 @@ extern "C"
 #endif // Q_OS_MAC
 
 #ifdef NGSTD_USING
+#include "core/version.h"
 #include "framework/access/access.h"
 #include "framework/access/signbutton.h"
 #endif // NGSTD_USING
+
+static const QString SENTRY_KEY = "https://71159235f0b542adb8ef214aa24f5aa6@sentry.nextgis.com/9";
 
 //------------------------------------------------------------------------------
 // Implementation of the python runner
@@ -833,7 +839,7 @@ void NGQgisApp::createActions()
   connect( mActionAddPgLayer, SIGNAL( triggered() ), this, SLOT( addDatabaseLayer() ) );
   connect( mActionAddSpatiaLiteLayer, SIGNAL( triggered() ), this, SLOT( addSpatiaLiteLayer() ) );
   connect( mActionAddMssqlLayer, SIGNAL( triggered() ), this, SLOT( addMssqlLayer() ) );
-  connect( mActionAddDb2Layer, SIGNAL( triggered() ), this, SLOT( addDb2Layer() ) );
+  // connect( mActionAddDb2Layer, SIGNAL( triggered() ), this, SLOT( addDb2Layer() ) );
   connect( mActionAddOracleLayer, SIGNAL( triggered() ), this, SLOT( addOracleLayer() ) );
   connect( mActionAddWmsLayer, SIGNAL( triggered() ), this, SLOT( addWmsLayer() ) );
   connect( mActionAddWcsLayer, SIGNAL( triggered() ), this, SLOT( addWcsLayer() ) );
@@ -1382,8 +1388,8 @@ void NGQgisApp::createToolBars()
     bt->addAction( mActionAddPgLayer );
   if ( mActionAddMssqlLayer )
     bt->addAction( mActionAddMssqlLayer );
-  if ( mActionAddDb2Layer )
-    bt->addAction( mActionAddDb2Layer );
+  // if ( mActionAddDb2Layer )
+  //   bt->addAction( mActionAddDb2Layer );
   if ( mActionAddOracleLayer )
     bt->addAction( mActionAddOracleLayer );
   QAction* defAddDbLayerAction = mActionAddPgLayer;
@@ -1396,7 +1402,7 @@ void NGQgisApp::createToolBars()
       defAddDbLayerAction = mActionAddMssqlLayer;
       break;
     case 2:
-      defAddDbLayerAction = mActionAddDb2Layer;
+      // defAddDbLayerAction = mActionAddDb2Layer;
       break;
     case 3:
       defAddDbLayerAction = mActionAddOracleLayer;
@@ -1454,13 +1460,37 @@ void NGQgisApp::createToolBars()
   spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
   mNGAccountToolBar->addWidget(spacer);
 
-#ifdef NGSTD_USING
-  NGSignInButton *toolbAuth = new NGSignInButton(QString("tv88lHLi6I9vUIck7eHxhkoJRfSLR74eLRx4YrpN"),
-                                     "user_info.read");
+#ifdef NGSTD_USING 
+#if defined(NGLIB_COMPUTE_VERSION) && NGLIB_VERSION_NUMBER > NGLIB_COMPUTE_VERSION(0,11,0)
+  QString endPointStr = settings.value("nextgis/endpoint", 
+    NGAccess::instance().endPoint() ).toString();
+  QString authEndPointStr = settings.value("nextgis/auth_endpoint", 
+    NGAccess::instance().authEndpoint() ).toString();
+  QString tokenEndPointStr = settings.value("nextgis/token_endpoint", 
+    NGAccess::instance().tokenEndpoint() ).toString();
+  QString userInfoEndPointStr = settings.value("nextgis/user_info_endpoint", 
+    NGAccess::instance().userInfoEndpoint() ).toString();    
+  int authType = settings.value("nextgis/auth_type", 0).toInt();
+  NGAccess::AuthSourceType type = static_cast<NGAccess::AuthSourceType>(authType);
+  auto scopes = settings.value("nextgis/auth_scopes", "").toString();
+  NGAccess::instance().setAuthEndpoint(authEndPointStr);
+  NGAccess::instance().setTokenEndpoint(tokenEndPointStr);
+  NGAccess::instance().setUserInfoEndpoint(userInfoEndPointStr);
+  bool codeChallenge = settings.value("nextgis/use_code_challenge", "1" ).toBool();
+  NGAccess::instance().setUseCodeChallenge(codeChallenge);
+  NGSignInButton *toolbAuth = new NGSignInButton(QLatin1String("tv88lHLi6I9vUIck7eHxhkoJRfSLR74eLRx4YrpN"),
+                                  scopes, endPointStr, type);
+
+  QString version = QLatin1String(VENDOR_VERSION) + " (" + QLatin1String(VERSION) + ")";
+  NGAccess::instance().initSentry(settings.value("nextgis/send_crashes", "0").toBool(), SENTRY_KEY, version);
+#else
+  NGSignInButton *toolbAuth = new NGSignInButton(QLatin1String("tv88lHLi6I9vUIck7eHxhkoJRfSLR74eLRx4YrpN"),
+                                     QLatin1String("user_info.read"));
+#endif // NGLIB_VERSION_NUMBER > 1100
   toolbAuth->setCursor(Qt::PointingHandCursor);
   mNGAccountToolBar->addWidget(toolbAuth);
   // TODO: QObject::connect(toolbAuth, SIGNAL(supportInfoUpdated()), this, SLOT(onSupportInfoUpdated()));
-#endif
+#endif // NGSTD_USING
 
 }
 
@@ -1627,7 +1657,7 @@ void NGQgisApp::setTheme( const QString& theThemeName )
   mActionNewSpatiaLiteLayer->setIcon( NGQgsApplication::getThemeIcon( "/mActionNewSpatiaLiteLayer.svg" ) );
   mActionAddSpatiaLiteLayer->setIcon( NGQgsApplication::getThemeIcon( "/mActionAddSpatiaLiteLayer.svg" ) );
   mActionAddMssqlLayer->setIcon( NGQgsApplication::getThemeIcon( "/mActionAddMssqlLayer.svg" ) );
-  mActionAddDb2Layer->setIcon( NGQgsApplication::getThemeIcon( "/mActionAddDb2Layer.svg" ) );
+  // mActionAddDb2Layer->setIcon( NGQgsApplication::getThemeIcon( "/mActionAddDb2Layer.svg" ) );
 #ifdef HAVE_ORACLE
   mActionAddOracleLayer->setIcon( NGQgsApplication::getThemeIcon( "/mActionAddOracleLayer.svg" ) );
 #endif

@@ -24,9 +24,9 @@
 # DEALINGS IN THE SOFTWARE.
 ################################################################################
 
-find_anyproject(SIP REQUIRED)
+find_anyproject(SIP REQUIRED VERSION 4.19.8 EXACT)
 find_anyproject(PyQt4 REQUIRED)
-find_anyproject(Qsci DEFAULT ON NAMES Qsci Qscintilla)
+find_anyproject(Qsci DEFAULT ON VERSION 2.10.4 EXACT NAMES Qsci Qscintilla)
 
 include(SIPMacros)
 include(PyQtMacros)
@@ -52,8 +52,10 @@ if(OSX_FRAMEWORK)
     get_filename_component(QTXML_FRAMEWORK "${QTXML_INCLUDE_DIRS}" PATH)
     set(COPY_FRAMEWORKS ${COPY_FRAMEWORKS} ${QTXML_FRAMEWORK})
 
-    get_filename_component(ZLIB_FRAMEWORK "${ZLIB_INCLUDE_DIRS}" PATH)
-    set(COPY_FRAMEWORKS ${COPY_FRAMEWORKS} ${ZLIB_FRAMEWORK})
+    if(WITH_ZLIB_EXTERNAL)
+        get_filename_component(ZLIB_FRAMEWORK "${ZLIB_INCLUDE_DIRS}" PATH)
+        set(COPY_FRAMEWORKS ${COPY_FRAMEWORKS} ${ZLIB_FRAMEWORK})
+    endif()
     file(COPY ${COPY_FRAMEWORKS} DESTINATION ${LIB_DIR}/Library/Frameworks)
 elseif(WIN32)
     get_property(QTCORE_LIBRARIES TARGET Qt4::QtCore PROPERTY IMPORTED_LOCATION_RELEASE)

@@ -52,6 +52,7 @@
 #include "qgsvectordataprovider.h"
 #include "qgsvectorlayer.h"
 #include "qgsvectorfilewriter.h"
+#include "qgsgeometryvalidator.h"
 
 #include "classifierdialog.h"
 #include "layerselectordialog.h"
@@ -69,6 +70,9 @@ ClassifierDialog::ClassifierDialog( QWidget* parent)
 
   manageGui();
 
+	clearPresenceLayersValidationError();
+	clearAbsenceLayersValidationError();
+
   // need this for working with rasters
   GDALAllRegister();
 
@@ -78,7 +82,7 @@ ClassifierDialog::ClassifierDialog( QWidget* parent)
   connect( btnMultiAbsence, SIGNAL( clicked() ), this, SLOT( selectLayers() ) );
   connect( btnOutputFile, SIGNAL( clicked() ), this, SLOT( selectOutputFile() ) );
   connect( rastersList, SIGNAL( itemSelectionChanged() ), this, SLOT( updateInputRasters() ) );
-  connect( rbDecisionTree, SIGNAL( toggled( bool ) ), this, SLOT( toggleDiscreteLabelsCheckBoxState( bool ) ) );
+  // connect( rbDecisionTree, SIGNAL( toggled( bool ) ), this, SLOT( toggleDiscreteLabelsCheckBoxState( bool ) ) );
   connect( generalizeCheckBox, SIGNAL( stateChanged( int ) ), this, SLOT( toggleKernelSizeSpinState( int ) ) );
   // connect( spnKernelSize, SIGNAL( editingFinished() ), this, SLOT( validateSize() ) );
 
@@ -106,6 +110,7 @@ void ClassifierDialog::selectLayers()
 
   if ( senderName == "btnMultiPresence" )
   {
+		clearPresenceLayersValidationError();
     if ( btnMultiPresence->isChecked() )
     {
       //dlg.setLayerList( &mPresenceLayers );
@@ -118,13 +123,14 @@ void ClassifierDialog::selectLayers()
       cmbPresenceLayer->setEnabled( true );
       cmbPresenceLayer->setCurrentIndex( -1 );
       mPresenceLayers.clear();
-    
+
     layersCmbCustomization();
       return;
     }
   }
   else
   {
+		clearAbsenceLayersValidationError();
     if ( btnMultiAbsence->isChecked() )
     {
       //dlg.setLayerList( &mAbsenceLayers );
@@ -137,7 +143,7 @@ void ClassifierDialog::selectLayers()
       cmbAbsenceLayer->setEnabled( true );
       cmbAbsenceLayer->setCurrentIndex( -1 );
       mAbsenceLayers.clear();
-    
+
     layersCmbCustomization();
       return;
     }
@@ -213,7 +219,7 @@ void ClassifierDialog::doClassificationExt()
 {
   bool is_valid = true;
 
-  if (leOutputRaster->text().isEmpty()) 
+  if (leOutputRaster->text().isEmpty())
   {
     leOutputRaster->setPlaceholderText( tr("Please, choose output file!") );
   leOutputRaster->setStyleSheet("background-color: rgba(255, 0, 0, 50);");
@@ -252,7 +258,7 @@ void ClassifierDialog::doClassificationExt()
   }
 
   if (cmbPresenceLayer->currentIndex() == -1)
-  { 
+  {
   cmbPresenceLayer->setEditable(true);
   cmbPresenceLayer->lineEdit()->setEnabled(false);
   cmbPresenceLayer->lineEdit()->setStyleSheet("background-color: rgba(255, 0, 0, 50);");
@@ -268,12 +274,56 @@ void ClassifierDialog::doClassificationExt()
   if (is_valid == false)
     return;
 
+	for (int i = 0; i < mPresenceLayers.size(); ++i )
+	{
+		QString layerName = mPresenceLayers.at( i );
+		QgsVectorLayer* layer = vectorLayerByName( layerName );
+
+		QgsFeature inFeat;
+		QgsVectorDataProvider* srcProvider = layer->dataProvider();
+		QgsFeatureIterator fit = srcProvider->getFeatures();
+		fit.rewind();
+		while ( fit.nextFeature( inFeat ) )
+		{
+			QList< QgsGeometry::Error > errors;
+			QgsGeometryValidator::validateGeometry(inFeat.geometry(), errors);
+
+			if (errors.size() > 0)
+			{
+				setPresenceLayersValidationError(tr("There are invalid geometries in selected layer(s)!"));
+			  return;
+			}
+		}
+	}
+
+	for (int i = 0; i < mAbsenceLayers.size(); ++i )
+	{
+		QString layerName = mAbsenceLayers.at( i );
+		QgsVectorLayer* layer = vectorLayerByName( layerName );
+
+		QgsFeature inFeat;
+		QgsVectorDataProvider* srcProvider = layer->dataProvider();
+		QgsFeatureIterator fit = srcProvider->getFeatures();
+		fit.rewind();
+		while ( fit.nextFeature( inFeat ) )
+		{
+			QList< QgsGeometry::Error > errors;
+			QgsGeometryValidator::validateGeometry(inFeat.geometry(), errors);
+
+			if (errors.size() > 0)
+			{
+				setAbsenceLayersValidationError(tr("There are invalid geometries in selected layer(s)!"));
+			  return;
+			}
+		}
+	}
+
   buttonBox->button(QDialogButtonBox::Ok)->setEnabled(false);
 
   // save checkboxes state
   QSettings settings( "NextGIS", "DTclassifier" );
 
-  settings.setValue( "discreteClasses", discreteLabelsCheckBox->isChecked() );
+  // settings.setValue( "discreteClasses", discreteLabelsCheckBox->isChecked() );
   settings.setValue( "addToCanvas", addToCanvasCheckBox->isChecked() );
   settings.setValue( "saveTempLayers", savePointLayersCheckBox->isChecked() );
 
@@ -306,8 +356,8 @@ void ClassifierDialog::doClassificationExt()
   config.mOutputTrainLayer = fi.absoluteDir().absolutePath() + "/" + fi.baseName() + "_train_points.shp";
   config.mOutputModel = fi.absoluteDir().absolutePath() + "/" + fi.baseName() + "_tree.yaml";
 
-  config.use_decision_tree = rbDecisionTree->isChecked();
-  config.discrete_classes = discreteLabelsCheckBox->isChecked();
+  config.use_decision_tree = false; //rbDecisionTree->isChecked();
+  config.discrete_classes = false; //discreteLabelsCheckBox->isChecked();
 
   config.do_generalization = generalizeCheckBox->isChecked();
   config.kernel_size = spnKernelSize->value();
@@ -319,7 +369,7 @@ void ClassifierDialog::doClassificationExt()
   connect( worker, SIGNAL( progressSubStep(int) ), stepProgress, SLOT( setValue(int) ) );
   connect( worker, SIGNAL( finished() ), this, SLOT( finishedProcess() ) );
   QgsDebugMsg(QString("worker"));
-  
+
   thread = new QThread(this);
   worker->moveToThread(thread);
   connect( thread, SIGNAL( started() ), worker, SLOT( process() ) );
@@ -388,17 +438,17 @@ void ClassifierDialog::manageGui()
 
   // classification settings
   QString algorithm = settings.value( "classificationAlg", "dtree" ).toString();
-  if ( algorithm == "dtree" )
-  {
-    rbDecisionTree->setChecked( true );
-    discreteLabelsCheckBox->setEnabled( true );
-  }
-  else
+  // if ( algorithm == "dtree" )
+  // {
+  //   rbDecisionTree->setChecked( true );
+  //   discreteLabelsCheckBox->setEnabled( true );
+  // }
+  // else
   {
     rbRandomTrees->setChecked( true );
-    discreteLabelsCheckBox->setEnabled( false );
+    // discreteLabelsCheckBox->setEnabled( false );
   }
-  discreteLabelsCheckBox->setChecked( settings.value( "discreteClasses", true ).toBool() );
+  // discreteLabelsCheckBox->setChecked( settings.value( "discreteClasses", true ).toBool() );
 
   // populate vector layers comboboxes
   QMap<QString, QgsMapLayer*> mapLayers = QgsMapLayerRegistry::instance()->mapLayers();
@@ -452,14 +502,14 @@ void ClassifierDialog::manageGui()
 
 void ClassifierDialog::toggleDiscreteLabelsCheckBoxState( bool checked )
 {
-  if ( checked )
-  {
-    discreteLabelsCheckBox->setEnabled( true );
-  }
-  else
-  {
-    discreteLabelsCheckBox->setEnabled( false );
-  }
+  // if ( checked )
+  // {
+  //   discreteLabelsCheckBox->setEnabled( true );
+  // }
+  // else
+  // {
+  //   discreteLabelsCheckBox->setEnabled( false );
+  // }
 }
 
 void ClassifierDialog::toggleKernelSizeSpinState( int state )
@@ -488,6 +538,8 @@ void ClassifierDialog::cmbUserSelectionHandler( int index )
   QString senderName = sender()->objectName();
   if (senderName == cmbPresenceLayer->objectName())
   {
+    clearPresenceLayersValidationError();
+
     mPresenceLayers.clear();
     if (index != -1)
     {
@@ -496,6 +548,8 @@ void ClassifierDialog::cmbUserSelectionHandler( int index )
   }
   if (senderName == cmbAbsenceLayer->objectName())
   {
+    clearAbsenceLayersValidationError();
+
     mAbsenceLayers.clear();
     if (index != -1)
     {
@@ -507,10 +561,10 @@ void ClassifierDialog::cmbUserSelectionHandler( int index )
 }
 
 void ClassifierDialog::layersCmbCustomization()
-{ 
+{
   QStandardItemModel* aModel = qobject_cast<QStandardItemModel*>(cmbAbsenceLayer->model());
   for (int i = 0; i < aModel->rowCount(); ++i)
-  { 
+  {
     QStandardItem* aItem = aModel->item(i);
     aItem->setEnabled(true);
 
@@ -563,4 +617,40 @@ void ClassifierDialog::updateStepProgress()
 {
   stepProgress->setValue( stepProgress->value() + 1 );
   QApplication::processEvents();
+}
+
+void ClassifierDialog::setPresenceLayersValidationError(const QString& msg)
+{
+	cmbPresenceLayer->setEditable(true);
+	cmbPresenceLayer->lineEdit()->setEnabled(false);
+	cmbPresenceLayer->lineEdit()->setStyleSheet("background-color: rgba(255, 0, 0, 50);");
+	presence_msg->setText(msg);
+}
+
+void ClassifierDialog::clearPresenceLayersValidationError()
+{
+	if (cmbPresenceLayer->lineEdit())
+	{
+	  cmbPresenceLayer->lineEdit()->setStyleSheet("background-color: rgba(255, 255, 255, 0);");
+		cmbPresenceLayer->setEditable(false);
+	}
+	presence_msg->setText("");
+}
+
+void ClassifierDialog::setAbsenceLayersValidationError(const QString& msg)
+{
+	cmbAbsenceLayer->setEditable(true);
+	cmbAbsenceLayer->lineEdit()->setEnabled(false);
+	cmbAbsenceLayer->lineEdit()->setStyleSheet("background-color: rgba(255, 0, 0, 50);");
+	absence_msg->setText(msg);
+}
+
+void ClassifierDialog::clearAbsenceLayersValidationError()
+{
+	if (cmbAbsenceLayer->lineEdit())
+	{
+		cmbAbsenceLayer->lineEdit()->setStyleSheet("background-color: rgba(255, 255, 255, 0);");
+		cmbAbsenceLayer->setEditable(false);
+	}
+	absence_msg->setText("");
 }

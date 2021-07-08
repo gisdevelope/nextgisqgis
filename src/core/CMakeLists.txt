@@ -35,9 +35,6 @@ endif()
 
 add_bison_files(qgsexpressionparser.yy qgssqlstatementparser.yy)
 
-# Default target
-find_package(PythonInterp REQUIRED)
-
 set(QGIS_CORE_SRCS
     symbology-ng/qgs25drenderer.cpp
     symbology-ng/qgsarrowsymbollayer.cpp
@@ -415,6 +412,8 @@ set(QGIS_CORE_SRCS ${QGIS_CORE_SRCS}
 set(QGIS_CORE_SRCS ${QGIS_CORE_SRCS}
     ngqgsapplication.cpp
 )
+# Default target
+find_package(PythonInterp REQUIRED)
 
 file(GLOB JSON_HELP_FILES "${CMAKE_SOURCE_DIR}/resources/function_help/json/*")
 string(REPLACE "$" "$$" JSON_HELP_FILES "${JSON_HELP_FILES}")
@@ -876,14 +875,38 @@ add_library(${LIB_NAME} SHARED ${QGIS_CORE_SRCS} ${QGIS_CORE_MOC_SRCS} ${QGIS_CO
 
 target_compile_definitions (${LIB_NAME} PRIVATE "CORE_EXPORT=${DLLEXPORT}")
 target_compile_definitions (${LIB_NAME} INTERFACE "CORE_EXPORT=${DLLIMPORT}")
-set_property(TARGET ${LIB_NAME} PROPERTY CXX_STANDARD 11)
+# set_property(TARGET ${LIB_NAME} PROPERTY CXX_STANDARD 11)
 
+set(TARGET_LINK_LIBEX)
 if(WIN32)
-    set(TARGET_LINK_LIB ${TARGET_LINK_LIB} wsock32)
+    set(TARGET_LINK_LIBEX ${TARGET_LINK_LIBEX} wsock32)
 endif()
 
-target_link_extlibraries(${LIB_NAME})
-set(TARGET_LINK_LIB ${TARGET_LINK_LIB} ${LIB_NAME} PARENT_SCOPE)
+set(TARGET_LINK_LIBEX ${TARGET_LINK_LIBEX}
+    Qt4::QtXml
+    Qt4::QtCore
+    Qt4::QtGui
+    Qt4::QtNetwork
+    Qt4::QtSvg
+    Qt4::QtSql
+    Qt4::QtWebKit
+
+    ${QCA_LIBRARIES}
+    ${PROJ_LIBRARIES}
+    ${GEOS_LIBRARIES}
+    ${GDAL_LIBRARIES}
+    ${SPATIALINDEX_LIBRARIES}
+    ${EXPAT_LIBRARIES}
+    ${SQLITE3_LIBRARIES}
+    ${SPATIALITE_LIBRARIES}
+)
+
+target_link_libraries(${LIB_NAME}
+    ${TARGET_LINK_LIBEX}
+)
+
+# target_link_extlibraries(${LIB_NAME})
+# set(TARGET_LINK_LIB ${TARGET_LINK_LIB} ${LIB_NAME} PARENT_SCOPE)
 
 if(OSX_FRAMEWORK)
     set_target_properties(${LIB_NAME} PROPERTIES
@@ -894,6 +917,7 @@ if(OSX_FRAMEWORK)
         MACOSX_FRAMEWORK_IDENTIFIER org.qgis.qgis2_core
         XCODE_ATTRIBUTE_INSTALL_PATH "@rpath"
         PUBLIC_HEADER "${QGIS_CORE_HDRS};${QGIS_CORE_MOC_HDRS}"
+        LINK_FLAGS "${CMAKE_SHARED_LINKER_FLAGS}"
     )
 endif()
 
@@ -906,11 +930,9 @@ set_target_properties(${LIB_NAME} PROPERTIES
 )
 
 # install
-
 if(OSX_FRAMEWORK)
     execute_process(
-        COMMAND ${CMAKE_COMMAND} -E make_directory ${PROJECT_BINARY_DIR}/symlinks
-        COMMAND ${CMAKE_COMMAND} -E create_symlink ../../Applications/${NG_PREFIX}${PROJECT_NAME}.app/Contents/Frameworks/${LIB_NAME}.framework ${PROJECT_BINARY_DIR}/symlinks/${LIB_NAME}.framework
+        COMMAND ${CMAKE_COMMAND} -E create_symlink ../../Applications/${QGIS_APP_NAME}.app/Contents/Frameworks/${LIB_NAME}.framework ${PROJECT_BINARY_DIR}/symlinks/${LIB_NAME}.framework
     )
 endif()
 

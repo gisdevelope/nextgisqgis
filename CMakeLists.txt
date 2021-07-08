@@ -47,9 +47,15 @@ endif()
 option(QT4_BUILD "Build with Qt4" ON)
 
 if(OSX_FRAMEWORK)
-    set(QGIS_DATA_SUBDIR "Applications/${NG_PREFIX}${PROJECT_NAME}.app/Contents/Resources")
+    set(QGIS_APP_NAME ${PROJECT_NAME}-${NG_PREFIX})
+else()
+    set(QGIS_APP_NAME ${NG_PREFIX}${PROJECT_NAME})
+endif()
+
+if(OSX_FRAMEWORK)
+    set(QGIS_DATA_SUBDIR "Applications/${QGIS_APP_NAME}.app/Contents/Resources")
     set(INSTALL_BIN_DIR "Applications" CACHE INTERNAL "Installation directory for executables" FORCE)
-    set(INSTALL_LIB_DIR "${INSTALL_BIN_DIR}/${NG_PREFIX}${PROJECT_NAME}.app/Contents/Frameworks" CACHE INTERNAL "Installation directory for libraries" FORCE)
+    set(INSTALL_LIB_DIR "${INSTALL_BIN_DIR}/${QGIS_APP_NAME}.app/Contents/Frameworks" CACHE INTERNAL "Installation directory for libraries" FORCE)
     if(QT4_BUILD)
         set(_PLUGIN_SUBDIR "Library/Plugins/Qt4")
     else()
@@ -66,7 +72,7 @@ if(OSX_FRAMEWORK)
     set(INSTALL_DOC_DIR ${INSTALL_SHARE_DIR}/doc CACHE INTERNAL "Installation directory for doc pages" FORCE)
     set(QT_PLUGIN_SUBDIR ${_PLUGIN_SUBDIR})
     set(QGIS_PLUGIN_SUBDIR ${_PLUGIN_SUBDIR}/${NG_PREFIX}${PROJECT_NAME})
-    set(QGIS_LIB_SUBDIR "Applications/${NG_PREFIX}${PROJECT_NAME}.app/Contents/Frameworks")
+    set(QGIS_LIB_SUBDIR "Applications/${QGIS_APP_NAME}.app/Contents/Frameworks")
     set(INSTALL_LIB_DIR2 Library/Frameworks CACHE INTERNAL "Installation directory for symlinks" FORCE)
 
     set(QGIS_MACAPP_BUNDLE 1)
@@ -113,8 +119,6 @@ if(CMAKE_GENERATOR_TOOLSET MATCHES "v([0-9]+)_xp")
     add_definitions(-D_WIN32_WINNT=0x0501)
 endif()
 
-set(QGIS_APP_NAME ${NG_PREFIX}${PROJECT_NAME})
-
 include(util)
 check_version(NGQGIS_MAJOR_VERSION NGQGIS_MINOR_VERSION NGQGIS_PATCH_VERSION CPACK_PACKAGE_VERSION_MAJOR CPACK_PACKAGE_VERSION_MINOR CPACK_PACKAGE_VERSION_PATCH RELEASE_NAME)
 set(VERSION ${NGQGIS_MAJOR_VERSION}.${NGQGIS_MINOR_VERSION}.${NGQGIS_PATCH_VERSION})
@@ -122,6 +126,16 @@ set(QGIS_VERSION ${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}.$
 
 if(OSX_FRAMEWORK)
     set(FRAMEWORK_VERSION "${CPACK_PACKAGE_VERSION_MAJOR}")
+endif()
+
+# For configure
+
+set(HAVE_SPATIALITE TRUE)
+#cmakedefine HAVE_MSSQL
+set(HAVE_ORACLE TRUE)
+
+if(WITH_BINDINGS)
+    set(HAVE_PYTHON TRUE)
 endif()
 
 include(configure)
@@ -137,6 +151,18 @@ option(WITH_BINDINGS "Build python bindings" ON)
 include(FindAnyProject)
 
 if(NOT PREPARE_ONLY)
+    find_anyproject(ZLIB REQUIRED)
+    find_anyproject(SQLite3 REQUIRED)
+    find_anyproject(EXPAT REQUIRED)
+    find_anyproject(GEOS REQUIRED)
+    find_anyproject(PROJ REQUIRED)
+    if(PROJ_FOUND)
+        string(REPLACE "." ";" VERSION_LIST ${PROJ_VERSION_STR})
+        list(GET VERSION_LIST 0 PROJ_VERSION_MAJOR)
+        add_definitions(-DACCEPT_USE_OF_DEPRECATED_PROJ_API_H -DPROJ_VERSION_MAJOR=${PROJ_VERSION_MAJOR})
+    endif()
+    find_anyproject(GDAL REQUIRED)
+
     # if(POLICY CMP0071)
     #     cmake_policy(SET CMP0071 NEW)
     # endif()
@@ -157,20 +183,14 @@ if(NOT PREPARE_ONLY)
         add_definitions(-DQT_DLL) # Only for shared libraries on win32
     endif()
 
-    find_anyproject(GDAL REQUIRED)
-    find_anyproject(GEOS REQUIRED)
-    find_anyproject(Qca REQUIRED)
-
-    find_anyproject(SQLite3 REQUIRED)
-    find_anyproject(EXPAT REQUIRED)
-
-    find_anyproject(Qscintilla REQUIRED)
+    find_anyproject(Qca REQUIRED VERSION 2.2.0 EXACT)
+    find_anyproject(Qscintilla REQUIRED VERSION 2.10.4 EXACT)
     if(QSCINTILLA_FOUND)
         add_definitions(-DQSCINTILLA_VERSION_STR="${QSCINTILLA_VERSION}")
         include_directories(${QSCINTILLA_INCLUDE_DIRS}/qscintilla)
     endif()
 
-    find_anyproject(Qwt REQUIRED)
+    find_anyproject(Qwt REQUIRED VERSION 6.1.3 EXACT)
     if(QWT_FOUND)
         add_definitions(-DQWT_VERSION_STR="${QWT_VERSION}")
         include_directories(${QWT_INCLUDE_DIRS}/qwt)
@@ -181,9 +201,6 @@ if(NOT PREPARE_ONLY)
     #the test data. See CMakeLists in test dirs for more info
     #TEST_DATA_DIR is also used by QgsRenderChecker currently in core
     set (TEST_DATA_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tests/testdata")
-
-
-    find_anyproject(ZLIB REQUIRED)
 
     # Copy zlib to qt bin directory
     if(WIN32)
@@ -221,13 +238,31 @@ IF(MSVC)
   ENDIF()
 ENDIF(MSVC)
 
-
 include(CheckCXXCompilerFlag)
 CHECK_CXX_COMPILER_FLAG("-std=c++11" COMPILER_SUPPORTS_CXX11)
 if(COMPILER_SUPPORTS_CXX11)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 endif()
 
+if(${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-return-type-c-linkage -Wno-overloaded-virtual")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Qunused-arguments")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Qunused-arguments")
+    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Qunused-arguments")
+    set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} -Qunused-arguments")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Qunused-arguments")
+endif()
+
+# Disable automatic conversion from QString to ASCII 8-bit strings (char *)
+# (Keeps code compatible with Qt/Mac/64bit)
+add_definitions(-DQT_NO_CAST_TO_ASCII)
+
+# install
+if(OSX_FRAMEWORK)
+    execute_process(
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${PROJECT_BINARY_DIR}/symlinks
+    )
+endif()
 
 add_subdirectory(src)
 if(NOT PREPARE_ONLY)

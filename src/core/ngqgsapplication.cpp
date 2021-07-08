@@ -77,8 +77,14 @@ void NGQgsApplication::init(QString customConfigPath)
       }
       else
       {
-        customConfigPath = QString( "%1.config%2qgis%3" )
-                .arg( QDir::homePath() + QDir::separator() )
+          QString config;
+      #ifdef Q_OS_MAC
+          config = QLatin1String("Library/Application Support");
+      #else
+          config = QLatin1String(".config");
+      #endif
+        customConfigPath = QString( "%1%2qgis%3" )
+                .arg( QDir::homePath() + QDir::separator() + config + QDir::separator())
                 .arg( QDir::separator() + QLatin1String(VENDOR) + QDir::separator() )
                 .arg( VERSION_INT / 10000 );
         putenv("QGIS_CUSTOM_CONFIG_PATH", customConfigPath.toUtf8(), FALSE);
@@ -91,7 +97,7 @@ void NGQgsApplication::init(QString customConfigPath)
     QDir defaultPrefixDir(applicationDirPath() + QDir::separator() + "..");
 
     // Add search gdal utilities paths
-    QString path = getenv( "PATH" );
+    QString path = defaultPrefixDir.absolutePath(); //getenv( "PATH" );
     putenv("PATH", QString( "%1;%2" ).arg(path).arg(applicationDirPath()), FALSE);
 
 #elif defined(Q_OS_MAC)

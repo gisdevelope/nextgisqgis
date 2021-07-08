@@ -104,6 +104,11 @@ typedef SInt32 SRefCon;
 #include "ngqgsapplication.h"
 #include "ngcustomization.h"
 
+#ifdef NGSTD_USING
+#include "core/request.h"
+#include "core/version.h"
+#endif // NGSTD_USING
+
 /** Print usage text
  */
 void usage( QString appName )
@@ -137,8 +142,8 @@ void usage( QString appName )
   << "\t[--dxf-scale-denom scale]\tscale for dxf output\n"
   << "\t[--dxf-encoding encoding]\tencoding to use for dxf output\n"
   << "\t[--dxf-preset visiblity-preset]\tlayer visibility preset to use for dxf output\n"
-  << "\t[--help]\tthis text\n"
-  << "\t[--]\ttreat all following arguments as FILEs\n\n"
+  << "\t[--help]\t\tthis text\n"
+  << "\t[--]\t\ttreat all following arguments as FILEs\n\n"
   << "  FILE:\n"
   << "    Files specified on the command line can include rasters,\n"
   << "    vectors, and QGIS project files (.qgs): \n"
@@ -358,7 +363,6 @@ static void translationPath(const QString &basePath,
 
 int main( int argc, char *argv[] )
 {
-
 #ifdef Q_OS_MAC
   // Increase file resource limits (i.e., number of allowed open files)
   // (from code provided by Larry Biehl, Purdue University, USA, from 'MultiSpec' project)
@@ -674,6 +678,7 @@ int main( int argc, char *argv[] )
     }
   }
 
+
   /////////////////////////////////////////////////////////////////////
   // Now we have the handlers for the different behaviours...
   ////////////////////////////////////////////////////////////////////
@@ -794,6 +799,7 @@ int main( int argc, char *argv[] )
 #ifdef Q_OS_WIN
     putenv( QString("GDAL_DATA=" + QCoreApplication::applicationDirPath().append( "/../share/gdal" )).toUtf8().constData() );
     putenv( QString("GDAL_DRIVER_PATH=" + QCoreApplication::applicationDirPath().append( "/../" ) + QString( QGIS_PLUGIN_SUBDIR ) ).toUtf8().constData() );
+    putenv(QString("PROJ_LIB=" + QCoreApplication::applicationDirPath().append( "/../share/proj" )).toUtf8().constData());
     if(!getenv("SSL_CERT_FILE")) {
         putenv(QString("SSL_CERT_FILE=" + QCoreApplication::applicationDirPath().append( "/../share/ssl/certs/cert.pem" )).toUtf8().constData());
     }
@@ -1014,6 +1020,21 @@ int main( int argc, char *argv[] )
     mySettings.remove( "/UI/state" );
     mySettings.remove( "/qgis/restoreDefaultWindowState" );
   }
+
+#ifdef NGSTD_USING  
+#if defined(NGLIB_COMPUTE_VERSION) && NGLIB_VERSION_NUMBER > NGLIB_COMPUTE_VERSION(0,11,0)
+  QString proxyHost = mySettings.value( "proxy/proxyHost", "" ).toString();
+  int proxyPort = mySettings.value( "proxy/proxyPort", "" ).toString().toInt();
+  QString proxyUser = mySettings.value( "proxy/proxyUser", "" ).toString();
+  QString proxyPassword = mySettings.value( "proxy/proxyPassword", "" ).toString();
+  QString proxyTypeString =  mySettings.value( "proxy/proxyType", "" ).toString();
+
+  NGRequest::setProxy(mySettings.value( "proxy/proxyEnabled", false ).toBool(), 
+    proxyTypeString == "DefaultProxy", proxyHost, 
+    proxyPort, proxyUser, proxyPassword, 
+    "ANY");
+#endif // NGLIB_VERSION_NUMBER > 1100    
+#endif // NGSTD_USING 
 
   // set max. thread count
   // this should be done in QgsApplication::init() but it doesn't know the settings dir.

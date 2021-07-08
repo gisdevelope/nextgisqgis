@@ -770,20 +770,27 @@ add_library(${LIB_NAME} SHARED ${QGIS_GUI_SRCS} ${QGIS_GUI_MOC_SRCS} ${QGIS_GUI_
 
 target_compile_definitions(${LIB_NAME} PRIVATE "GUI_EXPORT=${DLLEXPORT}")
 target_compile_definitions(${LIB_NAME} INTERFACE "GUI_EXPORT=${DLLIMPORT}")
-set_property(TARGET ${LIB_NAME} PROPERTY CXX_STANDARD 11)
+# set_property(TARGET ${LIB_NAME} PROPERTY CXX_STANDARD 11)
 
-
+set(TARGET_LINK_LIBEX)
 if(OSX_FRAMEWORK)
 
     find_library(CARBON_FRAMEWORK Carbon)
     find_library(COREFOUNDATION_FRAMEWORK CoreFoundation)
 
-    set(TARGET_LINK_LIB ${TARGET_LINK_LIB} ${CARBON_FRAMEWORK} ${COREFOUNDATION_FRAMEWORK})
+    set(TARGET_LINK_LIBEX ${TARGET_LINK_LIBEX} ${CARBON_FRAMEWORK} ${COREFOUNDATION_FRAMEWORK})
 endif()
 
-target_link_extlibraries(${LIB_NAME})
-add_dependencies(${LIB_NAME} ${NG_PREFIX}qgis_core)
-set(TARGET_LINK_LIB ${TARGET_LINK_LIB} ${LIB_NAME} PARENT_SCOPE)
+target_link_libraries(${LIB_NAME} PRIVATE
+    ${NG_PREFIX}qgis_core
+    Qt4::QtUiTools
+    ${QWT_LIBRARIES}
+    ${QSCINTILLA_LIBRARIES}
+    ${TARGET_LINK_LIBEX}
+)
+# target_link_extlibraries(${LIB_NAME})
+# add_dependencies(${LIB_NAME} ${NG_PREFIX}qgis_core)
+# set(TARGET_LINK_LIB ${TARGET_LINK_LIB} ${LIB_NAME} PARENT_SCOPE)
 
 if(OSX_FRAMEWORK)
     set_target_properties(${LIB_NAME} PROPERTIES
@@ -794,6 +801,7 @@ if(OSX_FRAMEWORK)
         MACOSX_FRAMEWORK_IDENTIFIER org.qgis.qgis2_gui
         XCODE_ATTRIBUTE_INSTALL_PATH "@rpath"
         PUBLIC_HEADER "${QGIS_GUI_HDRS};${QGIS_GUI_MOC_HDRS}"
+        LINK_FLAGS "${CMAKE_SHARED_LINKER_FLAGS}"
     )
 endif()
 
@@ -816,8 +824,7 @@ endif()
 # install
 if(OSX_FRAMEWORK)
     execute_process(
-        COMMAND ${CMAKE_COMMAND} -E make_directory ${PROJECT_BINARY_DIR}/symlinks
-        COMMAND ${CMAKE_COMMAND} -E create_symlink ../../Applications/${NG_PREFIX}${PROJECT_NAME}.app/Contents/Frameworks/${LIB_NAME}.framework ${PROJECT_BINARY_DIR}/symlinks/${LIB_NAME}.framework
+        COMMAND ${CMAKE_COMMAND} -E create_symlink ../../Applications/${QGIS_APP_NAME}.app/Contents/Frameworks/${LIB_NAME}.framework ${PROJECT_BINARY_DIR}/symlinks/${LIB_NAME}.framework
     )
 endif()
 

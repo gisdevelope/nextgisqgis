@@ -160,7 +160,7 @@ const QImage& QgsSvgCache::svgAsImage( const QString& file, double size, const Q
   return *( currentEntry->image );
 }
 
-const QPicture& QgsSvgCache::svgAsPicture( const QString& file, double size, const QColor& fill, const QColor& outline, double outlineWidth,
+QPicture QgsSvgCache::svgAsPicture( const QString& file, double size, const QColor& fill, const QColor& outline, double outlineWidth,
     double widthScaleFactor, double rasterScaleFactor, bool forceVectorOutput )
 {
   QMutexLocker locker( &mMutex );
@@ -175,7 +175,13 @@ const QPicture& QgsSvgCache::svgAsPicture( const QString& file, double size, con
     trimToMaximumSize();
   }
 
-  return *( currentEntry->picture );
+  QPicture p;
+  // For some reason p.detach() doesn't seem to always work as intended, at
+  // least with QT 5.5 on Ubuntu 16.04
+  // Serialization/deserialization is a safe way to be ensured we don't
+  // share a copy.
+  p.setData( currentEntry->picture->data(), currentEntry->picture->size() );
+  return p;
 }
 
 const QByteArray& QgsSvgCache::svgContent( const QString& file, double size, const QColor& fill, const QColor& outline, double outlineWidth,

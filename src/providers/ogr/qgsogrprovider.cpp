@@ -21,7 +21,9 @@ email                : sherman at mrcc.com
 #include "qgsmessagelog.h"
 #include "qgslocalec.h"
 
+#ifndef CPL_SUPRESS_CPLUSPLUS
 #define CPL_SUPRESS_CPLUSPLUS
+#endif
 #include <gdal.h>         // to collect version information
 #include <ogr_api.h>
 #include <ogr_srs_api.h>
@@ -2786,6 +2788,9 @@ QGISEXTERN bool createEmptyDataSource( const QString &uri,
   if ( !myWkt.isNull()  &&  myWkt.length() != 0 )
   {
     reference = OSRNewSpatialReference( myWkt.toLocal8Bit().data() );
+    #if GDAL_VERSION_NUM >= GDAL_COMPUTE_VERSION(3,0,0)
+    OSRSetAxisMappingStrategy(reference, OAMS_TRADITIONAL_GIS_ORDER);
+    #endif // GDAL_VERSION_NUM >= GDAL_COMPUTE_VERSION(3,0,0)
   }
 
   // Map the qgis geometry type to the OGR geometry type
@@ -3018,6 +3023,17 @@ void QgsOgrProvider::uniqueValues( int index, QList<QVariant> &uniqueValues, int
   return QgsVectorDataProvider::uniqueValues( index, uniqueValues, limit );
 #else
   QByteArray sql = "SELECT DISTINCT " + quotedIdentifier( mEncoding->fromUnicode( fld.name() ) );
+
+  // GPKG/SQLite fid
+  // For GPKG and SQLITE drivers PK fields are not exposed as real fields, (and OGR_F_GetFID only
+  // works with GPKG), so we are adding an extra column that will become index 0
+  // See https://github.com/qgis/QGIS/issues/29129
+  if ( ( ogrDriverName == QLatin1String( "GPKG" ) || ogrDriverName == QLatin1String( "SQLite" ) )
+       && mFirstFieldIsFid && index == 0 )
+  {
+    sql += ", " + quotedIdentifier( mEncoding->fromUnicode( fld.name() ) ) + " AS fid2";
+  }
+
   sql += " FROM " + quotedIdentifier( OGR_FD_GetName( OGR_L_GetLayerDefn( ogrLayer ) ) );
 
   if ( !mSubsetString.isEmpty() )

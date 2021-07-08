@@ -55,7 +55,7 @@ have_raven = True
 try:
     from raven import Client
     from raven.transport.requests import RequestsHTTPTransport
-    client = Client('https://71159235f0b542adb8ef214aa24f5aa6:11eae721ce1f490680c6adef9400b950@sentry.nextgis.com/9?timeout=15&verify_ssl=0',
+    client = Client('https://71159235f0b542adb8ef214aa24f5aa6@sentry.nextgis.com/9?timeout=17&verify_ssl=0',
         transport=RequestsHTTPTransport,
         processors = (
     	'raven.processors.SanitizePasswordsProcessor',
@@ -219,8 +219,8 @@ def open_stack_dialog(type, value, tb, msg, pop_error=True):
 
 def qgis_excepthook(type, value, tb):
     settings = QSettings()
-    sendCrashes = settings.value("/nextgis/sendCrashes", False, type=bool)
-    if sendCrashes and have_raven and NGAccess.instance().isUserSupported():
+    send_crashes = settings.value("/nextgis/send_crashes", False, type=bool)
+    if send_crashes and have_raven and NGAccess.instance().isUserSupported():
         logmessage = ''
         for s in traceback.format_exception(type, value, tb):
             logmessage += s.decode('utf-8', 'replace') if hasattr(s, 'decode') else s
@@ -562,62 +562,6 @@ def closeProjectMacro():
     mod = sys.modules["proj_macros_mod"]
     if hasattr(mod, 'closeProject'):
         mod.closeProject()
-
-
-#######################
-# SERVER PLUGINS
-#
-# TODO: move into server_utils.py ?
-
-# list of plugin paths. it gets filled in by the QGIS python library
-server_plugin_paths = []
-
-# dictionary of plugins
-server_plugins = {}
-
-# list of active (started) plugins
-server_active_plugins = []
-
-
-# initialize 'serverIface' object
-serverIface = None
-
-
-def initServerInterface(pointer):
-    from qgis.server import QgsServerInterface
-    from sip import wrapinstance
-    sys.excepthook = sys.__excepthook__
-    global serverIface
-    serverIface = wrapinstance(pointer, QgsServerInterface)
-
-
-def startServerPlugin(packageName):
-    """ initialize the plugin """
-    global server_plugins, server_active_plugins, serverIface
-
-    if packageName in server_active_plugins:
-        return False
-    if packageName not in sys.modules:
-        return False
-
-    package = sys.modules[packageName]
-
-    errMsg = QCoreApplication.translate("Python", "Couldn't load server plugin %s") % packageName
-
-    # create an instance of the plugin
-    try:
-        server_plugins[packageName] = package.serverClassFactory(serverIface)
-    except:
-        _unloadPluginModules(packageName)
-        msg = QCoreApplication.translate("Python",
-                                         "%s due to an error when calling its serverClassFactory() method") % errMsg
-        showException(sys.exc_info()[0], sys.exc_info()[1], sys.exc_info()[2], msg)
-        return False
-
-    # add to active plugins
-    server_active_plugins.append(packageName)
-    return True
-
 
 #######################
 # IMPORT wrapper
